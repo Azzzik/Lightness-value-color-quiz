@@ -5,14 +5,14 @@
   <title>Color Lightness Quiz</title>
   <style>
     body { font-family: sans-serif; padding: 2rem; background: #f5f5f5; }
-    #color-container { display: flex; gap: 10px; margin-bottom: 1rem; }
+    #color-container { display: flex; gap: 10px; margin-bottom: 1rem; flex-wrap: wrap; }
     .color-block {
       width: 60px;
       height: 60px;
       cursor: grab;
       border: 2px solid #333;
       box-sizing: border-box;
-      transition: filter 0.3s ease;
+      transition: background-color 0.25s ease;
     }
     button {
       padding: 0.5rem 1rem;
@@ -26,7 +26,6 @@
     .correct { border-color: green !important; }
     .incorrect { border-color: red !important; }
     .hint { border: 4px solid limegreen !important; }
-    .grayscale { filter: grayscale(1); }
   </style>
 </head>
 <body>
@@ -48,119 +47,15 @@
     const result = document.getElementById('result');
     const solutionContainer = document.getElementById('solution-container');
     let correctOrder = [];
+    let grayscaleOn = false;
 
-      // Generate a random color in HSL format
-      function generateRandomColor() {
-        const h = Math.floor(Math.random() * 360);
-        const s = Math.floor(Math.random() * 101);
-        const l = Math.floor(Math.random() * 101);
-        return `hsl(${h}, ${s}%, ${l}%)`;
-      }
-
-      // Extract the lightness value from an HSL color string
-      function getLightness(hsl) {
-        const [, , l] = hsl.match(/\d+/g).map(Number);
-        return l;
-      }
-
-    function generateColors() {
-      result.textContent = "";
-      solutionContainer.innerHTML = "";
-      colorContainer.innerHTML = "";
-      let colors = [];
-      const usedLightness = new Set();
-
-      while (colors.length < 6) {
-        let color = generateRandomColor();
-        const l = getLightness(color);
-        if (!colors.includes(color) && !usedLightness.has(l)) {
-          colors.push(color);
-          usedLightness.add(l);
-        }
-      }
-
-      correctOrder = [...colors].sort((a, b) => getLightness(a) - getLightness(b));
-
-      colors.forEach((color) => {
-        const div = document.createElement('div');
-        div.className = 'color-block';
-        div.style.backgroundColor = color;
-        div.draggable = true;
-        div.dataset.color = color;
-        div.addEventListener('dragstart', dragStart);
-        div.addEventListener('dragover', dragOver);
-        div.addEventListener('drop', drop);
-        colorContainer.appendChild(div);
-      });
+    // --- Color utils -------------------------------------------------
+    function generateRandomColor() {
+      const h = Math.floor(Math.random() * 360);
+      const s = Math.floor(Math.random() * 101);
+      const l = Math.floor(Math.random() * 101);
+      return `hsl(${h}, ${s}%, ${l}%)`;
     }
 
-    let dragSrcEl = null;
+    function getLightness(hsl) {
 
-    function dragStart(e) {
-      dragSrcEl = e.target;
-    }
-
-    function dragOver(e) {
-      e.preventDefault();
-    }
-
-    function drop(e) {
-      e.preventDefault();
-      if (dragSrcEl && dragSrcEl !== e.target) {
-        const src = dragSrcEl;
-        const target = e.target;
-        const temp = document.createElement('div');
-        colorContainer.insertBefore(temp, src);
-        colorContainer.insertBefore(src, target);
-        colorContainer.insertBefore(target, temp);
-        colorContainer.removeChild(temp);
-      }
-    }
-
-    function checkOrder() {
-      const userOrder = Array.from(colorContainer.children).map(div => div.dataset.color);
-      const correct = userOrder.every((color, idx) => color === correctOrder[idx]);
-      result.textContent = correct ? "✅ Correct!" : "❌ Try again!";
-    }
-
-    function showSolution() {
-      solutionContainer.innerHTML = "<h3>Correct Order:</h3>";
-      correctOrder.forEach(color => {
-        const div = document.createElement('div');
-        div.className = 'color-block';
-        div.style.backgroundColor = color;
-        solutionContainer.appendChild(div);
-      });
-
-      const userBlocks = Array.from(colorContainer.children);
-      userBlocks.forEach((block, index) => {
-        block.classList.remove('correct', 'incorrect', 'hint');
-        const userColor = block.dataset.color;
-        if (userColor === correctOrder[index]) {
-          block.classList.add('correct');
-        } else {
-          block.classList.add('incorrect');
-        }
-      });
-    }
-
-    function showHints() {
-      const userBlocks = Array.from(colorContainer.children);
-      userBlocks.forEach((block, index) => {
-        block.classList.remove('hint');
-        const userColor = block.dataset.color;
-        if (userColor === correctOrder[index]) {
-          block.classList.add('hint');
-        }
-      });
-    }
-
-    function toggleGrayscale() {
-      const blocks = document.querySelectorAll('.color-block');
-      blocks.forEach(block => block.classList.toggle('grayscale'));
-    }
-
-    generateColors();
-  </script>
-</body>
-</html>
