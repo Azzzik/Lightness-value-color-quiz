@@ -58,4 +58,143 @@
     }
 
     function getLightness(hsl) {
+      const [, , l] = hsl.match(/\d+/g).map(Number);
+      return l;
+    }
 
+    // --- Drag & drop -------------------------------------------------
+    let dragSrcEl = null;
+
+    function dragStart(e) {
+      dragSrcEl = e.target;
+    }
+
+    function dragOver(e) {
+      e.preventDefault();
+    }
+
+    function drop(e) {
+      e.preventDefault();
+      if (dragSrcEl && dragSrcEl !== e.target) {
+        const src = dragSrcEl;
+        const target = e.target;
+        const temp = document.createElement('div');
+        colorContainer.insertBefore(temp, src);
+        colorContainer.insertBefore(src, target);
+        colorContainer.insertBefore(target, temp);
+        colorContainer.removeChild(temp);
+      }
+    }
+
+    // --- Game logic --------------------------------------------------
+    function generateColors() {
+      // Скиньмо стан
+      result.textContent = "";
+      solutionContainer.innerHTML = "";
+      colorContainer.innerHTML = "";
+
+      let colors = [];
+      const usedLightness = new Set();
+
+      while (colors.length < 6) {
+        const color = generateRandomColor();
+        const l = getLightness(color);
+        if (!colors.includes(color) && !usedLightness.has(l)) {
+          colors.push(color);
+          usedLightness.add(l);
+        }
+      }
+
+      correctOrder = [...colors].sort((a, b) => getLightness(a) - getLightness(b));
+
+      colors.forEach((color) => {
+        const div = document.createElement('div');
+        div.className = 'color-block';
+        div.style.backgroundColor = color;
+        div.dataset.color = color;         // оригінал
+        div.dataset.origBg = color;        // збережено для повернення після grayscale
+        div.draggable = true;
+        div.addEventListener('dragstart', dragStart);
+        div.addEventListener('dragover', dragOver);
+        div.addEventListener('drop', drop);
+        colorContainer.appendChild(div);
+      });
+
+      // Якщо режим grayscale увімкнено — застосуй його до нових блоків
+      if (grayscaleOn) applyGrayscaleToAll();
+    }
+
+    function checkOrder() {
+      const userOrder = Array.from(colorContainer.children).map(div => div.dataset.color);
+      const correct = userOrder.every((color, idx) => color === correctOrder[idx]);
+      result.textContent = correct ? "✅ Correct!" : "❌ Try again!";
+    }
+
+    function showSolution() {
+      solutionContainer.innerHTML = "<h3>Correct Order:</h3>";
+      correctOrder.forEach(color => {
+        const div = document.createElement('div');
+        div.className = 'color-block';
+        // У рішенні показуємо теж «в кольорі», навіть якщо grayscale ввімкнено
+        div.style.backgroundColor = color;
+        solutionContainer.appendChild(div);
+      });
+
+      const userBlocks = Array.from(colorContainer.children);
+      userBlocks.forEach((block, index) => {
+        block.classList.remove('correct', 'incorrect', 'hint');
+        const userColor = block.dataset.color;
+        if (userColor === correctOrder[index]) {
+          block.classList.add('correct');
+        } else {
+          block.classList.add('incorrect');
+        }
+      });
+    }
+
+    function showHints() {
+      const userBlocks = Array.from(colorContainer.children);
+      userBlocks.forEach((block, index) => {
+        block.classList.remove('hint');
+        const userColor = block.dataset.color;
+        if (userColor === correctOrder[index]) {
+          block.classList.add('hint');
+        }
+      });
+    }
+
+    // --- Custom grayscale --------------------------------------------
+    function applyGrayscaleToBlock(block) {
+      const l = getLightness(block.dataset.color);
+      block.style.backgroundColor = `hsl(0, 0%, ${l}%)`;
+    }
+
+    function applyGrayscaleToAll() {
+      document.querySelectorAll('.color-block').forEach(block => {
+        block.dataset.origBg = block.dataset.origBg || block.style.backgroundColor;
+        applyGrayscaleToBlock(block);
+      });
+    }
+
+    function removeGrayscaleFromAll() {
+      document.querySelectorAll('.color-block').forEach(block => {
+        if (block.dataset.origBg) {
+          block.style.backgroundColor = block.dataset.origBg;
+        }
+      });
+    }
+
+    function toggleGrayscale() {
+      grayscaleOn = !grayscaleOn;
+      if (grayscaleOn) {
+        applyGrayscaleToAll();
+      } else {
+        removeGrayscaleFromAll();
+      }
+    }
+
+    // Init
+    generateColors();
+  </script>
+</body>
+</html>
