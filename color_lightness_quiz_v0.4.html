@@ -68,10 +68,15 @@
       solutionContainer.innerHTML = "";
       colorContainer.innerHTML = "";
       let colors = [];
+      const usedLightness = new Set();
 
       while (colors.length < 6) {
         let color = generateRandomColor();
-        if (!colors.includes(color)) colors.push(color);
+        const l = getLightness(color);
+        if (!colors.includes(color) && !usedLightness.has(l)) {
+          colors.push(color);
+          usedLightness.add(l);
+        }
       }
 
       correctOrder = [...colors].sort((a, b) => getLightness(a) - getLightness(b));
