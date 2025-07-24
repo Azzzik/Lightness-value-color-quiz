@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="uk">
 <head>
   <meta charset="UTF-8" />
   <title>Color Lightness Quiz</title>
@@ -12,8 +12,10 @@
       cursor: grab;
       border: 2px solid #333;
       box-sizing: border-box;
-      transition: background-color 0.25s ease;
+      transition: filter 0.3s ease;
+      user-select: none;
     }
+    .dragging { opacity: 0.5; }
     button {
       padding: 0.5rem 1rem;
       font-size: 1rem;
@@ -21,180 +23,176 @@
       margin-right: 0.5rem;
       margin-top: 0.5rem;
     }
-    #result { margin-top: 1rem; font-weight: bold; }
-    #solution-container { display: flex; gap: 10px; margin-top: 1rem; flex-wrap: wrap; }
-    .correct { border-color: green !important; }
-    .incorrect { border-color: red !important; }
-    .hint { border: 4px solid limegreen !important; }
+    #result { margin-top: 1rem; font-size: 1.1rem; }
+    #controls { margin-bottom: 1rem; }
+    #grayscale-toggle { margin-left: 0.5rem; }
   </style>
 </head>
 <body>
-  <h1>Arrange Colors by Lightness</h1>
-  <p>Drag the blocks from darkest to lightest.</p>
+  <h1>Впорядкуй блоки за Lightness (L)</h1>
+
+  <div id="controls">
+    <label>Кількість кольорів:
+      <input type="number" id="countInput" value="6" min="3" max="20">
+    </label>
+    <button id="newGameBtn">Нова гра</button>
+    <label>
+      <input type="checkbox" id="grayscale-toggle">
+      Чорно-білий фільтр
+    </label>
+  </div>
+
   <div id="color-container"></div>
 
-  <button onclick="checkOrder()">Check Order</button>
-  <button onclick="generateColors()">New Quiz</button>
-  <button onclick="showSolution()">I Surrender</button>
-  <button onclick="showHints()">I Need Help</button>
-  <button onclick="toggleGrayscale()">Toggle Grayscale View</button>
-
+  <button id="checkBtn">Перевірити</button>
   <div id="result"></div>
-  <div id="solution-container"></div>
 
   <script>
-    const colorContainer = document.getElementById('color-container');
-    const result = document.getElementById('result');
-    const solutionContainer = document.getElementById('solution-container');
-    let correctOrder = [];
-    let grayscaleOn = false;
+    // === Параметри генерації кольорів ===
+    const MIN_L = 15;
+    const MAX_L = 85;
+    const MIN_L_STEP = 8; // Мінімальна різниця між будь-якими двома L
 
-    // --- Color utils -------------------------------------------------
-    function generateRandomColor() {
-      const h = Math.floor(Math.random() * 360);
-      const s = Math.floor(Math.random() * 101);
-      const l = Math.floor(Math.random() * 101);
-      return `hsl(${h}, ${s}%, ${l}%)`;
+    function randInt(min, maxInclusive) {
+      return Math.floor(Math.random() * (maxInclusive - min + 1)) + min;
     }
 
-    function getLightness(hsl) {
-      const [, , l] = hsl.match(/\d+/g).map(Number);
-      return l;
+    function randHSL() {
+      const h = randInt(0, 359);
+      const s = randInt(40, 90); // 40–90%
+      const l = randInt(MIN_L, MAX_L);
+      return { h, s, l };
     }
 
-    // --- Drag & drop -------------------------------------------------
-    let dragSrcEl = null;
-
-    function dragStart(e) {
-      dragSrcEl = e.target;
-    }
-
-    function dragOver(e) {
-      e.preventDefault();
-    }
-
-    function drop(e) {
-      e.preventDefault();
-      if (dragSrcEl && dragSrcEl !== e.target) {
-        const src = dragSrcEl;
-        const target = e.target;
-        const temp = document.createElement('div');
-        colorContainer.insertBefore(temp, src);
-        colorContainer.insertBefore(src, target);
-        colorContainer.insertBefore(target, temp);
-        colorContainer.removeChild(temp);
+    function generateColors(count) {
+      const colors = [];
+      let guard = 0;
+      while (colors.length < count && guard < 2000) {
+        guard++;
+        const c = randHSL();
+        const ok = colors.every(x => Math.abs(x.l - c.l) >= MIN_L_STEP);
+        if (ok) colors.push(c);
       }
+      if (colors.length < count) {
+        console.warn('Не вдалося згенерувати потрібну кількість з заданим кроком L. Зменш к-сть або крок.');
+      }
+      // Перемішуємо для випадкового порядку показу
+      return shuffle(colors);
     }
 
-    // --- Game logic --------------------------------------------------
-    function generateColors() {
-      // Скиньмо стан
-      result.textContent = "";
-      solutionContainer.innerHTML = "";
-      colorContainer.innerHTML = "";
-
-      let colors = [];
-      const usedLightness = new Set();
-
-      while (colors.length < 6) {
-        const color = generateRandomColor();
-        const l = getLightness(color);
-        if (!colors.includes(color) && !usedLightness.has(l)) {
-          colors.push(color);
-          usedLightness.add(l);
-        }
+    function shuffle(arr) {
+      for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
       }
+      return arr;
+    }
 
-      correctOrder = [...colors].sort((a, b) => getLightness(a) - getLightness(b));
+    // === Стейт гри ===
+    let currentColors = []; // [{h,s,l, id}]
+    let originalOrder = []; // копія для перевірки
 
-      colors.forEach((color) => {
+    const container = document.getElementById('color-container');
+    const resultBox = document.getElementById('result');
+    const checkBtn = document.getElementById('checkBtn');
+    const newGameBtn = document.getElementById('newGameBtn');
+    const countInput = document.getElementById('countInput');
+    const grayscaleToggle = document.getElementById('grayscale-toggle');
+
+    newGameBtn.addEventListener('click', newGame);
+    checkBtn.addEventListener('click', checkAnswer);
+    grayscaleToggle.addEventListener('change', applyGrayscale);
+
+    function newGame() {
+      const count = parseInt(countInput.value, 10) || 6;
+      currentColors = generateColors(count).map((c, idx) => ({ ...c, id: idx }));
+      originalOrder = [...currentColors].sort((a, b) => a.l - b.l);
+      renderBlocks();
+      resultBox.textContent = '';
+    }
+
+    function hslToCss({h, s, l}) {
+      return `hsl(${h} ${s}% ${l}%)`;
+    }
+
+    function renderBlocks() {
+      container.innerHTML = '';
+      currentColors.forEach(c => {
         const div = document.createElement('div');
         div.className = 'color-block';
-        div.style.backgroundColor = color;
-        div.dataset.color = color;         // оригінал
-        div.dataset.origBg = color;        // збережено для повернення після grayscale
+        div.style.background = hslToCss(c);
         div.draggable = true;
-        div.addEventListener('dragstart', dragStart);
-        div.addEventListener('dragover', dragOver);
-        div.addEventListener('drop', drop);
-        colorContainer.appendChild(div);
+        div.dataset.id = c.id;
+        container.appendChild(div);
       });
-
-      // Якщо режим grayscale увімкнено — застосуй його до нових блоків
-      if (grayscaleOn) applyGrayscaleToAll();
+      initDragAndDrop();
+      applyGrayscale();
     }
 
-    function checkOrder() {
-      const userOrder = Array.from(colorContainer.children).map(div => div.dataset.color);
-      const correct = userOrder.every((color, idx) => color === correctOrder[idx]);
-      result.textContent = correct ? "✅ Correct!" : "❌ Try again!";
+    function applyGrayscale() {
+      const gray = grayscaleToggle.checked;
+      [...container.children].forEach(block => {
+        block.style.filter = gray ? 'grayscale(100%)' : 'none';
+      });
     }
 
-    function showSolution() {
-      solutionContainer.innerHTML = "<h3>Correct Order:</h3>";
-      correctOrder.forEach(color => {
-        const div = document.createElement('div');
-        div.className = 'color-block';
-        // У рішенні показуємо теж «в кольорі», навіть якщо grayscale ввімкнено
-        div.style.backgroundColor = color;
-        solutionContainer.appendChild(div);
+    // === Drag & Drop ===
+    function initDragAndDrop() {
+      let dragged;
+
+      container.addEventListener('dragstart', e => {
+        if (!e.target.classList.contains('color-block')) return;
+        dragged = e.target;
+        e.target.classList.add('dragging');
+        e.dataTransfer.effectAllowed = 'move';
       });
 
-      const userBlocks = Array.from(colorContainer.children);
-      userBlocks.forEach((block, index) => {
-        block.classList.remove('correct', 'incorrect', 'hint');
-        const userColor = block.dataset.color;
-        if (userColor === correctOrder[index]) {
-          block.classList.add('correct');
+      container.addEventListener('dragend', e => {
+        if (!e.target.classList.contains('color-block')) return;
+        e.target.classList.remove('dragging');
+      });
+
+      container.addEventListener('dragover', e => {
+        e.preventDefault();
+        const afterEl = getDragAfterElement(container, e.clientX, e.clientY);
+        if (afterEl == null) {
+          container.appendChild(dragged);
         } else {
-          block.classList.add('incorrect');
+          container.insertBefore(dragged, afterEl);
         }
       });
     }
 
-    function showHints() {
-      const userBlocks = Array.from(colorContainer.children);
-      userBlocks.forEach((block, index) => {
-        block.classList.remove('hint');
-        const userColor = block.dataset.color;
-        if (userColor === correctOrder[index]) {
-          block.classList.add('hint');
+    function getDragAfterElement(container, x, y) {
+      const blocks = [...container.querySelectorAll('.color-block:not(.dragging)')];
+      return blocks.reduce((closest, child) => {
+        const rect = child.getBoundingClientRect();
+        const offset = y - rect.top - rect.height / 2;
+        if (offset < 0 && offset > closest.offset) {
+          return { offset, element: child };
+        } else {
+          return closest;
         }
+      }, { offset: Number.NEGATIVE_INFINITY }).element;
+    }
+
+    // === Перевірка ===
+    function checkAnswer() {
+      const placedIds = [...container.children].map(el => Number(el.dataset.id));
+      const placed = placedIds.map(id => currentColors.find(c => c.id === id));
+      const correct = originalOrder.map(c => c.id);
+
+      let correctCount = 0;
+      placed.forEach((c, i) => {
+        if (c.id === correct[i]) correctCount++;
       });
+
+      const percent = Math.round((correctCount / placed.length) * 100);
+      resultBox.textContent = `Правильних позицій: ${correctCount}/${placed.length} (${percent}%)`;
     }
 
-    // --- Custom grayscale --------------------------------------------
-    function applyGrayscaleToBlock(block) {
-      const l = getLightness(block.dataset.color);
-      block.style.backgroundColor = `hsl(0, 0%, ${l}%)`;
-    }
-
-    function applyGrayscaleToAll() {
-      document.querySelectorAll('.color-block').forEach(block => {
-        block.dataset.origBg = block.dataset.origBg || block.style.backgroundColor;
-        applyGrayscaleToBlock(block);
-      });
-    }
-
-    function removeGrayscaleFromAll() {
-      document.querySelectorAll('.color-block').forEach(block => {
-        if (block.dataset.origBg) {
-          block.style.backgroundColor = block.dataset.origBg;
-        }
-      });
-    }
-
-    function toggleGrayscale() {
-      grayscaleOn = !grayscaleOn;
-      if (grayscaleOn) {
-        applyGrayscaleToAll();
-      } else {
-        removeGrayscaleFromAll();
-      }
-    }
-
-    // Init
-    generateColors();
+    // Стартова гра
+    newGame();
   </script>
 </body>
 </html>
