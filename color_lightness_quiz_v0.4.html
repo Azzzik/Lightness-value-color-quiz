@@ -49,17 +49,19 @@
     const solutionContainer = document.getElementById('solution-container');
     let correctOrder = [];
 
-    function generateRandomColor() {
-      const r = Math.floor(Math.random() * 256);
-      const g = Math.floor(Math.random() * 256);
-      const b = Math.floor(Math.random() * 256);
-      return `rgb(${r}, ${g}, ${b})`;
-    }
+      // Generate a random color in HSL format
+      function generateRandomColor() {
+        const h = Math.floor(Math.random() * 360);
+        const s = Math.floor(Math.random() * 101);
+        const l = Math.floor(Math.random() * 101);
+        return `hsl(${h}, ${s}%, ${l}%)`;
+      }
 
-    function getLightness(rgb) {
-      const [r, g, b] = rgb.match(/\d+/g).map(Number);
-      return 0.2126 * r + 0.7152 * g + 0.0722 * b;
-    }
+      // Extract the lightness value from an HSL color string
+      function getLightness(hsl) {
+        const [, , l] = hsl.match(/\d+/g).map(Number);
+        return l;
+      }
 
     function generateColors() {
       result.textContent = "";
